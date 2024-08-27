@@ -231,8 +231,8 @@ class LigerCrossEntropyFunction(torch.autograd.Function):
         (_input,) = ctx.saved_tensors
         reduction = ctx.reduction
 
-        if reduction == "mean":
-            grad_output /= (_input.shape[0] if grad_output.ndim == 0 else grad_output.numel())
+        # if reduction == "mean":
+        #     grad_output /= (_input.shape[0] if grad_output.ndim == 0 else grad_output.numel())
 
         # If cross entropy is the last layer, grad_output is 1.0. Skip the mul to save time
         if torch.equal(grad_output, torch.tensor(1.0, device=grad_output.device)):
