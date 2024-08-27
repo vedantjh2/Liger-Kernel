@@ -154,7 +154,7 @@ class LigerCrossEntropyFunction(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(ctx, _input, target, ignore_index):
+    def forward(ctx, _input, target, ignore_index, reduction):
         """
         The forward pass of the Liger Cross Entropy loss.
 
@@ -163,6 +163,7 @@ class LigerCrossEntropyFunction(torch.autograd.Function):
         _input (tensor): The input tensor of shape (BT, V) where B is batch size, T is sequence length, V is vocab size.
         target (tensor): The target tensor of shape (BT) where each value is in [0, V-1].
         ignore_index (int): The index to ignore in the target.
+        reduction (str): The type of reduction we will be performing (mean or sum)
 
         Returns:
         tensor: The computed loss.
@@ -200,8 +201,15 @@ class LigerCrossEntropyFunction(torch.autograd.Function):
             num_warps=32,
         )
 
-        loss = torch.sum(loss_1d) / n_non_ignore
+        # Compute the final loss based on the reduction method
+        if reduction == "mean":
+            loss = torch.sum(loss_1d) / n_non_ignore
+        elif reduction == "sum":
+            loss = torch.sum(loss_1d)
+        elif reduction == "none":
+            loss = loss_1d  # No reduction, return the loss tensor as is
 
+        ctx.reduction = reduction
         # TODO: investigation
         # If we don't detach the _input tensor, the memory will double
         # Not sure why but seems that there will be a time both grad and value exist but in different location
@@ -221,6 +229,11 @@ class LigerCrossEntropyFunction(torch.autograd.Function):
         tuple: A tuple with the gradients with respect to the inputs. The elements are tensors or None.
         """
         (_input,) = ctx.saved_tensors
+        reduction = ctx.reduction
+
+        if reduction == "mean":
+            grad_output /= (_input.shape[0] if grad_output.ndim == 0 else grad_output.numel())
+
         # If cross entropy is the last layer, grad_output is 1.0. Skip the mul to save time
         if torch.equal(grad_output, torch.tensor(1.0, device=grad_output.device)):
             pass
